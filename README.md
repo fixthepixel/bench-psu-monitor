@@ -10,6 +10,10 @@ A 3-channel bench power supply monitor PCB built around an **ESP32 DevKit V1** a
 - I²C address selection via solder jumpers JP1/JP2
 - Compact 2-layer PCB with gerbers ready for fabrication
 
+## Interactive BOM
+
+[View Interactive BOM](https://fixthepixel.github.io/bench-psu-monitor/bom/ibom.html)
+
 ## Hardware
 
 | Component | Value / Part |
