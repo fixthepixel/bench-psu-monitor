@@ -27,7 +27,10 @@ bench-psu-monitor.kicad_sch   Schematic
 bench-psu-monitor.kicad_pcb   PCB layout
 bom/ibom.html                 Interactive BOM
 gerber/                       Gerber files for fabrication
+firmware/                     ESP32 Arduino sketch
 ```
+
+See [firmware/README.md](firmware/README.md) for flashing instructions, library dependencies, and WebSocket API reference.
 
 ## Fabrication
 
