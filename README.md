@@ -1,5 +1,7 @@
 # Bench PSU Monitor
 
+![Board](images/bench-psu-monitor-image-1.jpg)
+
 A 3-channel bench power supply monitor PCB built around an **ESP32 DevKit V1** and a **Texas Instruments INA3221** triple-channel current/voltage sense IC.
 
 ## Features
