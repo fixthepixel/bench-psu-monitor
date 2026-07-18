@@ -1,0 +1,3 @@
+firmware/*.ino linguist-language=Arduino
+bom/ibom.html linguist-vendored
+gerber/* linguist-generated
