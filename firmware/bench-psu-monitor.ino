@@ -11,6 +11,7 @@
 #define I2C_SCL 22
 #define CAL_BUTTON_PIN 0     // BOOT button -> zero calibration
 #define WIFI_BUTTON_PIN 23   // long-press -> WiFi config portal
+#define PWR_LED_PIN 2
 #define INA3221_ADDR 0x40
 #define CH1 0
 
@@ -102,6 +103,9 @@ void setup() {
 
   pinMode(CAL_BUTTON_PIN, INPUT_PULLUP);
   pinMode(WIFI_BUTTON_PIN, INPUT_PULLUP);
+  pinMode(PWR_LED_PIN, OUTPUT);
+
+  digitalWrite(PWR_LED_PIN, LOW);
 
   Wire.begin(I2C_SDA, I2C_SCL);
   if (!ina3221.begin(INA3221_ADDR, &Wire)) {
@@ -135,6 +139,8 @@ void setup() {
   }
 
   Serial.println("Hold BOOT (GPIO0) 2s to calibrate zero (CH1 unloaded).");
+
+  digitalWrite(PWR_LED_PIN, HIGH);
 }
 
 void loop() {
