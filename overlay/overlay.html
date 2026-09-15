@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>INA3221 Overlay</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: transparent;
+      font-family: 'Helvetica', 'Courier New', 'Consolas', monospace;
+      padding: 12px;
+    }
+
+    #widget {
+      background: rgba(0, 0, 0, 0.9);
+      padding: 30px 48px 36px;
+      display: inline-block;
+      width: 600px;
+      height: 600px;
+      overflow: hidden;
+      transition: opacity 0.2s;
+    }
+
+    #header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    #label {
+      font-size: 36px;
+      letter-spacing: 0.15em;
+      color: #ffffff;
+    }
+
+    #status {
+      font-size: 36px;
+      letter-spacing: 0.12em;
+      color: #66bb6a;
+    }
+
+    .row {
+      display: flex;
+      align-items: baseline;
+      gap: 18px;
+      margin-bottom: 6px;
+    }
+
+    .row .value {
+      font-size: 69px;
+      font-weight: 700;
+      color: #ffffff;
+      min-width: 180px;
+      text-align: right;
+    }
+
+    #voltage { color: #e57373; }
+    #current { color: #64b5f6; }
+    #power   { color: #81c784; }
+
+    .row .units {
+      font-size: 39px;
+      color: #aaaaaa;
+      width: 90px;
+    }
+
+    .row .rowlabel {
+      font-size: 36px;
+      color: #888888;
+      width: 42px;
+    }
+
+    #chartWrap {
+      margin-top: 30px;
+      position: relative;
+    }
+
+    #chartLabel {
+      font-size: 30px;
+      color: #9b9b9b;
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 186px;
+    }
+
+    #widget.disconnected {
+      opacity: 0.4;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="widget" class="disconnected">
+    <div id="header">
+      <span id="label">CH1 POWER</span>
+      <span id="status">--</span>
+    </div>
+
+    <div class="row">
+      <span class="rowlabel">V</span>
+      <span class="value" id="voltage">--.---</span>
+      <span class="units">V</span>
+    </div>
+    <div class="row">
+      <span class="rowlabel">I</span>
+      <span class="value" id="current">--.--</span>
+      <span class="units">mA</span>
+    </div>
+    <div class="row">
+      <span class="rowlabel">P</span>
+      <span class="value" id="power">--.-</span>
+      <span class="units">W</span>
+    </div>
+
+    <div id="chartWrap">
+      <div id="chartLabel">CURRENT (mA) — LAST 60s</div>
+      <canvas id="chart" width="600" height="80"></canvas>
+    </div>
+  </div>
+
+  <script>
+    const WS_URL = "ws://localhost:8766";
+    const RECONNECT_MS = 2000;
+    const HISTORY_MS = 60000;
+
+    const widget = document.getElementById("widget");
+    const statusEl = document.getElementById("status");
+    const voltageEl = document.getElementById("voltage");
+    const currentEl = document.getElementById("current");
+    const powerEl = document.getElementById("power");
+    const canvas = document.getElementById("chart");
+    const ctx = canvas.getContext("2d");
+
+    let history = [];
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * devicePixelRatio;
+      canvas.height = rect.height * devicePixelRatio;
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    function drawChart() {
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+
+  if (history.length < 2) return;
+
+  const now = Date.now();
+  const cutoff = now - HISTORY_MS;
+  history = history.filter(p => p.t >= cutoff);
+  if (history.length < 2) return;
+
+  const values = history.map(p => p.i);
+  const maxObserved = Math.max(...values);
+
+  const minV = 0;
+  const maxV = Math.ceil(Math.max(maxObserved, 1) / 1000) * 1000;
+
+  ctx.strokeStyle = "rgba(255,255,255,0.15)";
+  ctx.lineWidth = 3;
+  for (let i = 0; i <= 2; i++) {
+    const y = (h / 2) * i;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#29b6f6";
+  ctx.font = "36px Helvetica, monospace";
+  ctx.textAlign = "left";
+  ctx.fillText(maxV.toFixed(0) + " mA", 6, 30);
+
+  ctx.strokeStyle = "#29b6f6";
+  ctx.lineWidth = 4.5;
+  ctx.beginPath();
+  history.forEach((p, idx) => {
+    const x = ((p.t - cutoff) / HISTORY_MS) * w;
+    const y = h - ((p.i - minV) / (maxV - minV)) * h;
+    if (idx === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  const lastPoint = history[history.length - 1];
+  const lastX = ((lastPoint.t - cutoff) / HISTORY_MS) * w;
+  const lastY = h - ((lastPoint.i - minV) / (maxV - minV)) * h;
+  ctx.fillStyle = "#29b6f6";
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 7.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Peak labels
+  const MIN_PEAK_PX = 90;
+  const MIN_PEAK_FRAC = 0.1; // must be >10% of scale to label
+  const peaks = [];
+  for (let i = 1; i < history.length - 1; i++) {
+    const prev = history[i - 1].i, cur = history[i].i, next = history[i + 1].i;
+    if (cur > prev && cur > next && cur / maxV > MIN_PEAK_FRAC) {
+      const px = ((history[i].t - cutoff) / HISTORY_MS) * w;
+      if (!peaks.length || px - peaks[peaks.length - 1].px > MIN_PEAK_PX) {
+        peaks.push({ px, py: h - ((cur - minV) / (maxV - minV)) * h, val: cur });
+      } else if (cur > peaks[peaks.length - 1].val) {
+        const last = peaks[peaks.length - 1];
+        last.px = px; last.py = h - ((cur - minV) / (maxV - minV)) * h; last.val = cur;
+      }
+    }
+  }
+  const topPeak = peaks.reduce((a, b) => b.val > a.val ? b : a, peaks[0]);
+  if (topPeak) {
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "27px Helvetica, monospace";
+    ctx.textAlign = "right";
+    ctx.fillText(topPeak.val.toFixed(0), topPeak.px - 15, Math.max(topPeak.py - 15, 27));
+  }
+}
+
+    function render(d) {
+      widget.classList.remove("disconnected");
+      statusEl.textContent = "LIVE";
+
+      voltageEl.textContent = (typeof d.v === "number") ? d.v.toFixed(2) : "--.---";
+      currentEl.textContent = (typeof d.i === "number") ? d.i.toFixed(1) : "--.--";
+      powerEl.textContent = (typeof d.p === "number") ? (d.p / 1000).toFixed(1) : "--.-";
+
+      if (typeof d.i === "number") {
+        history.push({ t: Date.now(), i: d.i });
+        drawChart();
+      }
+    }
+
+    function showDisconnected() {
+      widget.classList.add("disconnected");
+      statusEl.textContent = "--";
+      voltageEl.textContent = "--.---";
+      currentEl.textContent = "--.--";
+      powerEl.textContent = "--.-";
+    }
+
+    let ws = null;
+
+    function connect() {
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        widget.classList.remove("disconnected");
+        statusEl.textContent = "LIVE";
+      };
+
+      ws.onmessage = (ev) => {
+        try {
+          const d = JSON.parse(ev.data);
+          if (!d.error) render(d);
+        } catch (e) { }
+      };
+
+      ws.onclose = () => {
+        showDisconnected();
+        setTimeout(connect, RECONNECT_MS);
+      };
+
+      ws.onerror = () => ws.close();
+    }
+
+    connect();
+  </script>
+</body>
+
+</html>
